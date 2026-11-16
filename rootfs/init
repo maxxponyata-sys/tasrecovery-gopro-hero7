@@ -1,0 +1,123 @@
+#!/bin/busybox sh
+# TasRecovery - custom recovery for GoPro HERO7 Silver/White (APQ8053 "Tasmania")
+/bin/busybox mkdir -p /proc /sys /dev /tmp /run /mnt/sd /data /root /usr/bin /usr/sbin
+/bin/busybox --install -s
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin HOME=/root
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t tmpfs -o mode=0755 dev /dev
+mount -t tmpfs tmpfs /tmp
+mount -t tmpfs tmpfs /run
+mount -t tmpfs tmpfs /data
+mknod -m 600 /dev/console c 5 1
+mknod -m 666 /dev/null c 1 3
+mknod -m 666 /dev/kmsg c 1 11
+mkdir -p /dev/pts /dev/socket /dev/block/by-name
+mount -t devpts devpts /dev/pts
+echo /sbin/mdev > /proc/sys/kernel/hotplug
+mdev -s
+hostname tasrecovery
+
+# partitions by name (like /dev/block/bootdevice/by-name on the stock system)
+for u in /sys/class/block/mmcblk0p*/uevent; do
+    n=$(sed -n 's/^PARTNAME=//p' $u)
+    d=$(sed -n 's/^DEVNAME=//p' $u)
+    [ -n "$n" ] && [ -n "$d" ] && ln -sf /dev/$d /dev/block/by-name/$n
+done
+mkdir -p /dev/block/bootdevice
+ln -sf /dev/block/by-name /dev/block/bootdevice/by-name
+
+# ---- GoPro firmware update pending? Hand over to the stock GoPro recovery. ----
+# gpcam writes "--update_package=/data/UPDATE/CAMFW.zip" to /cache/recovery/command and reboots
+# into recovery. The stock recovery userspace lives untouched in the "recoveryfs" partition and uses
+# the same kernel, so we just switch_root into it.
+CHAIN=""
+mkdir -p /mnt/cache /newroot
+if mount -t ext4 -o ro /dev/block/by-name/cache /mnt/cache 2>/dev/null; then
+    [ -s /mnt/cache/recovery/command ] && CHAIN=$(head -c 200 /mnt/cache/recovery/command)
+    umount /mnt/cache
+fi
+if [ -n "$CHAIN" ] && mount -t ext4 -o ro /dev/block/by-name/recoveryfs /newroot; then
+    echo "tasrec: stock recovery command '$CHAIN' -> switch_root to recoveryfs" > /dev/kmsg
+    # /sbin/init there is an absolute symlink (-> /sbin/init.sysvinit), so test inside /newroot
+    if [ -L /newroot/sbin/init ] || [ -x /newroot/sbin/init ]; then
+        echo "" > /proc/sys/kernel/hotplug
+        umount /dev/pts; umount /dev; umount /tmp; umount /run; umount /data; umount /sys
+        umount /proc
+        exec switch_root /newroot /sbin/init
+    fi
+    umount /newroot
+fi
+
+exec >>/tmp/tasrec.log 2>&1
+log() { echo "tasrec: $*"; echo "tasrec: $*" > /dev/kmsg; }
+log "init (kernel $(uname -r))"
+[ -n "$CHAIN" ] && log "stock recovery hand-over failed for: $CHAIN"
+
+# properties for adbd (root shell, no auth) - leprop-service reads /build.prop
+leprop-service &
+sleep 1
+
+# ---- USB: ADB, falls back to an ACM serial shell if adbd does not come up ----
+U=/sys/class/android_usb/android0
+i=0
+while [ ! -d $U ] && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done
+SER=$(printf %08x "$(cat /sys/devices/soc0/serial_number 2>/dev/null || echo 0)")
+
+adbd_loop() { while true; do adbd; sleep 1; done; }
+
+usb_adb() {
+    mkdir -p /dev/usb-ffs/adb
+    grep -q ' /dev/usb-ffs/adb ' /proc/mounts || mount -t functionfs adb /dev/usb-ffs/adb
+    [ -e $U/f_ffs/aliases ] && echo adb > $U/f_ffs/aliases
+    adbd_loop &
+    echo $! > /run/adbd_loop.pid
+    sleep 1
+    echo 0 > $U/enable
+    echo 18D1 > $U/idVendor
+    echo 4EE7 > $U/idProduct
+    echo GoPro > $U/iManufacturer
+    echo TasRecovery > $U/iProduct
+    echo $SER > $U/iSerial
+    echo adb > $U/functions
+    sleep 1
+    echo 1 > $U/enable
+}
+
+usb_acm() {
+    echo 0 > $U/enable
+    echo 0525 > $U/idVendor
+    echo A4A7 > $U/idProduct
+    [ -e $U/f_acm/acm_transports ] && echo tty > $U/f_acm/acm_transports
+    echo acm > $U/functions
+    echo 1 > $U/enable
+    while true; do
+        mdev -s
+        [ -c /dev/ttyGS0 ] && setsid cttyhack sh -l </dev/ttyGS0 >/dev/ttyGS0 2>&1
+        sleep 1
+    done &
+}
+
+if [ -d $U ]; then
+    usb_adb
+    i=0
+    while ! pidof adbd >/dev/null && [ $i -lt 10 ]; do sleep 1; i=$((i+1)); done
+    if pidof adbd >/dev/null; then
+        log "adb up (serial $SER)"
+    else
+        log "adbd failed, switching to ACM serial shell"
+        kill $(cat /run/adbd_loop.pid) 2>/dev/null
+        usb_acm
+    fi
+else
+    log "android_usb not found"
+fi
+
+# ---- SD card ----
+if tas-sd mount; then log "sd mounted"; else log "no sd card"; fi
+
+# ---- on-screen UI (respawned if it ever exits) ----
+( while true; do tasui; sleep 1; done ) &
+
+log "ready"
+while true; do sleep 3600; done

@@ -1,0 +1,20 @@
+# proprietary GoPro firmware binaries - extract with tools/pull_deps.sh
+rootfs/lib/
+rootfs/sbin/adbd
+rootfs/sbin/leprop-service
+rootfs/sbin/getprop
+rootfs/sbin/setprop
+# third-party binaries / build outputs
+rootfs/bin/busybox
+rootfs/sbin/tasui
+rootfs/sbin/tasfb
+rootfs/sbin/tasbtn
+rootfs/sbin/reboot2
+rootfs/sbin/fbinfo
+apps/doom/doom
+doom/build/
+*.img
+*.cpio.gz
+# game data - bring your own
+*.wad
+*.WAD

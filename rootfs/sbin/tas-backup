@@ -1,0 +1,35 @@
+#!/bin/sh
+# tas-backup [all | PART ...]  ->  /mnt/sd/TASBACKUP/<date>/<PART>.img.gz + md5sums.txt
+# Default: every partition except the big ones (userdata cache system recoveryfs).
+# "all" also includes system and recoveryfs.
+BY=/dev/block/by-name
+grep -q ' /mnt/sd ' /proc/mounts || tas-sd mount || { echo "no SD card"; exit 1; }
+SKIP="userdata cache system recoveryfs"
+if [ "$1" = all ]; then SKIP="userdata cache"; shift; fi
+if [ $# -gt 0 ]; then
+    PARTS="$*"
+else
+    PARTS=""
+    for p in $BY/*; do
+        n=${p##*/}
+        case " $SKIP " in *" $n "*) ;; *) PARTS="$PARTS $n" ;; esac
+    done
+fi
+OUT=/mnt/sd/TASBACKUP/$(date +%Y%m%d-%H%M%S)
+mkdir -p $OUT || exit 1
+cat /proc/partitions > $OUT/partitions.txt
+ls -l $BY > $OUT/by-name.txt
+rc=0
+for n in $PARTS; do
+    if [ ! -e $BY/$n ]; then echo "skip $n (no such partition)"; continue; fi
+    echo "backup $n"
+    if dd if=$BY/$n bs=1M 2>/dev/null | gzip -1 > $OUT/$n.img.gz; then
+        ( cd $OUT && md5sum $n.img.gz >> md5sums.txt )
+    else
+        echo "FAILED $n"
+        rc=1
+    fi
+done
+sync
+echo "backup in $OUT"
+exit $rc

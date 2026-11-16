@@ -1,0 +1,27 @@
+#!/bin/sh
+# tas-flash PART FILE[.gz] [--force]   write an image to a partition (boot chain needs --force)
+BY=/dev/block/by-name
+P=$1
+F=$2
+if [ -z "$P" ] || [ ! -f "$F" ]; then echo "usage: tas-flash PART FILE[.gz] [--force]"; exit 1; fi
+[ -e $BY/$P ] || { echo "no partition $P"; exit 1; }
+CHAIN=" sbl1 sbl1bak tz tzbak rpm rpmbak aboot abootbak devcfg devcfgbak keymaster keymasterbak cmnlib cmnlibbak cmnlib64 cmnlib64bak lksecapp lksecappbak sec DDR fsc ssd "
+case "$CHAIN" in
+    *" $P "*)
+        if [ "$3" != --force ]; then echo "$P is part of the boot chain; add --force if you really mean it"; exit 1; fi
+        ;;
+esac
+BLK=$(readlink $BY/$P)
+SZ=$(cat /sys/class/block/${BLK##*/}/size)
+SZ=$((SZ * 512))
+echo "flashing $F -> $P"
+case "$F" in
+    *.gz)
+        gzip -dc "$F" | dd of=$BY/$P bs=1M conv=fsync 2>&1 | tail -1
+        ;;
+    *)
+        if [ "$(stat -c %s "$F")" -gt "$SZ" ]; then echo "image larger than partition ($SZ bytes)"; exit 1; fi
+        dd if="$F" of=$BY/$P bs=1M conv=fsync 2>&1 | tail -1
+        ;;
+esac
+sync

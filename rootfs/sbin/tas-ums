@@ -1,0 +1,27 @@
+#!/bin/sh
+# tas-ums on|off   SD card as a USB drive on the PC (adb stays available)
+U=/sys/class/android_usb/android0
+L=$U/f_mass_storage/lun/file
+case "$1" in
+on)
+    D=$(tas-sd dev) || { echo "no SD card"; exit 1; }
+    tas-sd umount || { echo "SD card busy"; exit 1; }
+    echo 0 > $U/enable
+    echo 4EE2 > $U/idProduct
+    echo mass_storage,adb > $U/functions
+    echo $D > $L
+    echo 1 > $U/enable
+    ;;
+off)
+    echo 0 > $U/enable
+    echo "" > $L 2>/dev/null
+    echo 4EE7 > $U/idProduct
+    echo adb > $U/functions
+    echo 1 > $U/enable
+    tas-sd mount
+    ;;
+*)
+    echo "usage: tas-ums on|off"
+    exit 1
+    ;;
+esac

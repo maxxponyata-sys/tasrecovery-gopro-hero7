@@ -1,0 +1,22 @@
+#!/bin/sh
+# tas-reboot [system|bootloader|recovery|edl|poweroff]
+sync
+tas-sd umount >/dev/null 2>&1
+sync
+case "${1:-system}" in
+    system)
+        reboot -f
+        ;;
+    poweroff)
+        poweroff -f
+        ;;
+    bootloader|recovery|edl)
+        reboot2 $1
+        echo "reboot2 failed"
+        exit 1
+        ;;
+    *)
+        echo "usage: tas-reboot [system|bootloader|recovery|edl|poweroff]"
+        exit 1
+        ;;
+esac

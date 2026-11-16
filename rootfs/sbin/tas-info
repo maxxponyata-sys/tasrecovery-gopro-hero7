@@ -1,0 +1,11 @@
+#!/bin/sh
+SD=$(grep ' /mnt/sd ' /proc/mounts | cut -d' ' -f1,3)
+echo "TasRecovery - GoPro HERO7 (APQ8053)"
+echo "kernel:  $(uname -r)"
+echo "battery: $(cat /sys/class/power_supply/battery/capacity 2>/dev/null)% $(cat /sys/class/power_supply/battery/status 2>/dev/null)"
+echo "sd card: ${SD:-none}"
+echo "usb:     $(cat /sys/class/android_usb/android0/functions 2>/dev/null)"
+echo "fb0:     $(cat /sys/class/graphics/fb0/virtual_size 2>/dev/null) $(cat /sys/class/graphics/fb0/bits_per_pixel 2>/dev/null)bpp"
+echo "log:     /tmp/tasrec.log"
+echo "tools:   tas-backup [all|PART..]  tas-flash PART FILE  tas-ums on|off"
+echo "         tas-reboot [system|bootloader|recovery|edl|poweroff]  tas-sd mount|umount"

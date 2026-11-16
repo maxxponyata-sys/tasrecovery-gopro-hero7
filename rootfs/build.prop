@@ -1,0 +1,9 @@
+ro.secure=0
+ro.debuggable=1
+ro.adb.secure=0
+service.adb.root=1
+ro.hardware=qcom
+ro.product.model=HERO7
+ro.product.name=tasrecovery
+ro.product.device=tasmania
+ro.build.version.release=tasrecovery-1
