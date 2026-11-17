@@ -11,6 +11,7 @@ rootfs/sbin/tasfb
 rootfs/sbin/tasbtn
 rootfs/sbin/reboot2
 rootfs/sbin/fbinfo
+rootfs/sbin/tasdbg
 apps/doom/doom
 doom/build/
 *.img
@@ -18,3 +19,8 @@ doom/build/
 # game data - bring your own
 *.wad
 *.WAD
+
+# patcher output
+patched/
+UPDATE/
+UPDATE.zip

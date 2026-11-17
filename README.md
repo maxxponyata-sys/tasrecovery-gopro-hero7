@@ -28,6 +28,11 @@ Tested on a HERO7 Silver, firmware H18.03.02.10.00, unlocked LK bootloader.
 - **Recovery button for the stock firmware** — `tasbtn` runs next to gpcam: press the **side button
   5 times within 3 s**, the status LEDs blink for 3 s (any key cancels), then the camera reboots into recovery.
 
+## Getting adb on the stock firmware
+`adb-patch/patch_update_adb.py UPDATE.zip` turns the official firmware update package into one that enables a
+root adb shell over USB (MTP off) - install it from the SD card like any update. See [adb-patch/README.md](adb-patch/README.md).
+TasRecovery itself is installed with `fastboot` (unlocked LK bootloader).
+
 ## Run without flashing (RAM only)
 ```
 adb reboot bootloader
